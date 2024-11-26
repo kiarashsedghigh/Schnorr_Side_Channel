@@ -8,7 +8,7 @@
 
 int main() {
     mpz_t N, u, R, b_n_minus_1, b_n_plus_1, r_correct, q_correct, r_barrett, q_barrett;
-    unsigned int n, length_N, counter_result = 0, iteration = 10000;
+    unsigned int n, counter_result = 0, iteration = 10000;
     int sum_N_1, sum_N_2, sum_N_3, sum_q_1, sum_q_2, sum_q_3, sum_u_1, sum_u_2, sum_u_3, sum_r_1, sum_r_2, sum_r_3;
     int Zero_1, Zero_2, Zero_3;
     int counter1 = 0, counter2 = 0, counter3 = 0, counter_loop = 0, counter_combined = 0;
@@ -44,12 +44,12 @@ int main() {
         exit(1);
     }
 
-    long long benchmark_results_total_iterations[2];
-    long long benchmark_results_single_iteration[2];
+    /* Variables holding the cycle/instruction counts for single/total interation(s) */
+    long long benchmark_results_total_iterations[2] = {0,0};
+    long long benchmark_results_single_iteration[2] = {0,0};
 
     // Iterate for simulations
     for (unsigned int i = 0; i < iteration; i++) {
-        // Correct values
 
         // Generate a random N
         mpz_urandomb(N, state, SIZE_N);
@@ -57,8 +57,17 @@ int main() {
         // Generate a random u
         mpz_urandomb(u, state, SIZE_U);
 
+
+
+/**************************************************************************************************************************/
+        // Start the event set
+        if (PAPI_start(EventSet) != PAPI_OK) {
+            fprintf(stderr, "Error starting PAPI\n");
+            exit(1);
+        }
+
         // Calculate length_N and n
-        length_N = mpz_sizeinbase(N, 2); // Number of bits in N
+        unsigned int length_N = mpz_sizeinbase(N, 2); // Number of bits in N
         n = (length_N + WORD_SIZE - 1) / WORD_SIZE;
 
         // Precompute R, b^(n-1), b^(n+1)
@@ -67,23 +76,14 @@ int main() {
         mpz_ui_pow_ui(R, 2, 2 * n * WORD_SIZE);
         mpz_fdiv_q(R, R, N); // R = floor(b^(2n) / N)
 
-
-
-
-
-
-/**************************************************************************************************************************/
-
-        // Start the event set
-        if (PAPI_start(EventSet) != PAPI_OK) {
-            fprintf(stderr, "Error starting PAPI\n");
-            exit(1);
-        }
-
         // Perform Barrett reduction
+
         barrett_reduction_OURS(r_barrett, q_barrett, &fault_happened_loop, u, N, R, b_n_minus_1, b_n_plus_1, n);
         // barrett_reduction_REF(r_barrett, u, N, R, b_n_minus_1, b_n_plus_1, n);
+
+        // Adding is done in the function
         counter_loop = counter_loop + fault_happened_loop;
+
 
         compute_sums(N, &sum_N_1, &sum_N_2, &sum_N_3);
         compute_sums(u, &sum_u_1, &sum_u_2, &sum_u_3);
@@ -106,8 +106,6 @@ int main() {
         }
         benchmark_results_total_iterations[0] += benchmark_results_single_iteration[0];
         benchmark_results_total_iterations[1] += benchmark_results_single_iteration[1];
-
-
     }
 
 
@@ -126,18 +124,11 @@ int main() {
     printf("Total cycles: %lld\n", benchmark_results_total_iterations[0] / iteration);
     printf("Total instructions: %lld\n", benchmark_results_total_iterations[1] / iteration);
 
-
-
     /**************************************************************************************************************************/
-    // Print results
     printf("No fault happened is %u.\n", counter_result); // only for checking it works- must delete for overhead
-    // printf("Not detected from sum1 is %u.\n", counter1);
-    // printf("Not detected from sum2 is %u.\n", counter2);
-    // printf("Not detected from sum3 is %u.\n", counter3);
     printf("fault happened but not detected from combined is %u.\n", counter_combined);
 
     // Clear GMP integers
     mpz_clears(N, u, R, b_n_minus_1, b_n_plus_1, r_correct, q_correct, r_barrett, q_barrett, NULL);
-
     return 0;
 }

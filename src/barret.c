@@ -1,47 +1,58 @@
 #include <gmp.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "size.h"
+#include <stdint.h>
 
+
+uint64_t barrett_reduction_64bit_mod_10(uint64_t x) {
+    const uint64_t mu = (1ULL << 64) / 10;  // mu = floor(2^64 / 10)
+
+    const uint64_t q = (x * mu) >> 64;      // q = floor(x * mu / 2^64)
+    uint64_t r = x - q * 10;          // r = x - q * 10
+
+    if (r >= 10)
+        r -= 10;
+
+    return r;
+}
 
 void compute_sums(mpz_t N, int *sum1, int *sum2, int *sum3) {
-    // Variables to store intermediate sums
-    int sum_temp0 = 0, sum_temp1 = 0, sum_temp2 = 0, sum_temp3 = 0;
 
-    // Convert N to a string for digit processing
-    char *digits = mpz_get_str(NULL, 10, N);
+    int sum_temps[4] = {0, 0, 0, 0};  // Array to store intermediate sums
 
-    // Process digits from least significant to most significant
-    size_t len = strlen(digits);
-    for (size_t i = 0; i < len; i++) {
-        int digit = digits[len - i - 1] - '0'; // Get the numeric value of the digit
+    mp_size_t limb_cnt = mpz_size(N);  // Number of limbs in the mpz_t number
 
-        if (i % 4 == 0) {
-            sum_temp0 += digit;
-        } else if (i % 4 == 1) {
-            sum_temp1 += digit;
-        } else if (i % 4 == 2) {
-            sum_temp2 += digit;
-        } else if (i % 4 == 3) {
-            sum_temp3 += digit;
+    mp_limb_t *limbs = mpz_limbs_read(N);  // Get the limbs of the number
+
+    size_t digit_count = 0;
+
+    // Process each limb in the number (from least significant to most significant)
+    for (mp_size_t i = 0; i < limb_cnt; i++) {
+        mp_limb_t limb = limbs[i];  // Get the current limb
+
+        // Extract digits from the limb
+        while (limb > 0) {
+            const int digit = (int) barrett_reduction_64bit_mod_10(limb);
+
+            sum_temps[digit_count % 4] += digit;  // Add the digit to the corresponding sum bucket
+
+            // if (digit_count == 4)
+            //     digit_count = 0;
+            limb /= 10;  // Divide the limb by 10 to process the next digit
+
+            digit_count++;
         }
     }
-
-    // Free the string allocated by mpz_get_str
-    free(digits);
-
-    // Compute final sums
-    *sum1 = (sum_temp0 + sum_temp1 + sum_temp2 + sum_temp3) % 9;                  // Mod 9
-    *sum2 = (sum_temp0 - sum_temp1 + sum_temp2 - sum_temp3) % 11;                 // Mod 11
-    *sum3 = (sum_temp0 + (10 * sum_temp1) - sum_temp2 - (10 * sum_temp3)) % 101;  // Mod 101
-    // Ensure sums are positive
-    if (*sum1 < 0) *sum1 += 9;
-    if (*sum2 < 0) *sum2 += 11;
-    if (*sum3 < 0) *sum3 += 101;
+    *sum1 = (sum_temps[0] + sum_temps[1] + sum_temps[2] + sum_temps[3] + 9) % 9;                  // Mod 9
+    *sum2 = (sum_temps[0] - sum_temps[1] + sum_temps[2] - sum_temps[3] + 11) % 11;                 // Mod 11
+    *sum3 = (sum_temps[0] + (10 * sum_temps[1]) - sum_temps[2] - (10 * sum_temps[3]) + 101) % 101;  // Mod 101
 }
 
 
 void barrett_reduction_OURS(mpz_t r, mpz_t q, int *fault_happened, const mpz_t u, const mpz_t N, const mpz_t R, const mpz_t b_n_minus_1, const mpz_t b_n_plus_1, unsigned int n) {
+
     mpz_t u_high, q_hat, r1, r2, temp, N_mult, b_n_plus_2;
     unsigned int subtraction_count = 0;
 

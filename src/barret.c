@@ -5,114 +5,10 @@
 #include "size.h"
 #include <stdint.h>
 
-//
-//
-// __uint128_t mod_64plus1 = ((__uint128_t)1 << 64) + 1; // Use 128-bit integer
 __uint128_t mod_64minus1 = ((__uint128_t)1 << 64) - 1; // Use 128-bit integer
 __uint128_t mod_64minus2 = ((__uint128_t)1 << 64) - 2; // Use 128-bit integer
-//
-// __uint128_t two_256 = ((__uint128_t)1 << 256);
-// __uint128_t mu = ((__uint128_t)1 << 256) / mod_64plus1;
-//
-// void print_uint128(__uint128_t value) {
-//     uint64_t high = (uint64_t)(value >> 64); // Extract the high 64 bits
-//     uint64_t low = (uint64_t)value;         // Extract the low 64 bits
-//
-//     if (high > 0) {
-//         // If the high part is non-zero, print it with leading zeros for the low part
-//         printf("High64:%llu      Low64:%llu\n", high, low);
-//     } else {
-//         // If the high part is zero, print only the low part
-//         printf("High64: 0        Low64: %llu\n", low);
-//     }
-// }
-//
-// uint64_t sum_eff_mod64min1(mpz_t N) {
-//     const mp_size_t limb_cnt = mpz_size(N);  // Number of limbs in the mpz_t number
-//     const mp_limb_t *limbs = mpz_limbs_read(N);  // Get the limbs of the number
-//
-//     __uint128_t temp_sum = 0;
-//
-//     for (int i = 0; i < limb_cnt; i++) {
-//         temp_sum += limbs[i];
-//         if (temp_sum >= mod_64minus1) {
-//             temp_sum -= mod_64minus1;
-//         }
-//     }
-//     return temp_sum;
-// }
-//
-//
-//
-// __uint128_t N64MIN2;// = ((__uint128_t)1 << 64) - 2;
-// __uint128_t N64MIN1;// = ((__uint128_t)1 << 64) - 2;
-//
-// __uint128_t B64;// = ((__uint128_t)1 << 64);
-// __uint128_t MOD65MIN1;// = ((__uint128_t)1 << 65) - 1;
-// __uint128_t POW65;// = ((__uint128_t)1 << 65);
-// __uint128_t R;
-// __uint128_t R2;
-//
-//
-// void init_r() {
-//     N64MIN2 = ((__uint128_t)1 << 64) - 2;
-//     B64 = ((__uint128_t)1 << 64);
-//     MOD65MIN1 = ((__uint128_t)1 << 65) - 1;
-//     POW65 = ((__uint128_t)1 << 65);
-//     R = ((__uint128_t)1 << 64) | 2;
-//
-//
-//     N64MIN1 = ((__uint128_t)1 << 64) - 1;
-//     R2 = ((__uint128_t)1 << 64) | 1;
-//
-// }
-//
-// __uint128_t barret_64min2_efficient_version(__uint128_t u) {
-//     __uint128_t q_hat = (((u >> 63) * R) >> 65);
-//     __uint128_t r1 = u & MOD65MIN1;
-//     __uint128_t r2 = (q_hat * N64MIN2) & MOD65MIN1;
-//
-//     __uint128_t r;
-//
-//     if (r1 < r2) {
-//         r = POW65 + r1 - r2;
-//     }else {
-//         r= r1 - r2;
-//     }
-//     while (r >= N64MIN2) {
-//         r -= N64MIN2;
-//     }
-//     return r;
-// }
-//
-//
-// __uint128_t barret_64min1_efficient_version(__uint128_t u) {
-//     printf("Value of u\n");
-//     print_uint128(u);
-//     __uint128_t q_hat = (((u >> 63) * R2) >> 65);
-//
-//     __uint128_t r1 = u & MOD65MIN1;
-//     __uint128_t r2 = (q_hat * N64MIN1) & MOD65MIN1;
-//
-//
-//     __uint128_t r;
-//
-//     if (r1 < r2) {
-//         r = POW65 + r1 - r2;
-//     }else {
-//         r= r1 - r2;
-//     }
-//
-//     while (r >= N64MIN1) {
-//         r -= N64MIN1;
-//     }
-//
-//     // Step 9: Return the result
-//     return r;
-// }
-//
-//
-void sum_eff_mod64twomodes(mpz_t N, uint64_t* sum64min1, uint64_t* sum64min2) {
+
+void limb_sum_mod64p1_64m1(mpz_t N, uint64_t* sum64min1, uint64_t* sum64min2) {
     const mp_size_t limb_cnt = mpz_size(N);  // Number of limbs in the mpz_t number
     const mp_limb_t *limbs = mpz_limbs_read(N);  // Get the limbs of the number
     __uint128_t temp_sum_64min1 = 0;
@@ -129,8 +25,8 @@ void sum_eff_mod64twomodes(mpz_t N, uint64_t* sum64min1, uint64_t* sum64min2) {
     *sum64min1 = temp_sum_64min1 % mod_64minus1;
     *sum64min2 = temp_sum_64min2 % mod_64minus2;
 }
-//
-//
+
+
 void barrett_reduction_OURS(mpz_t r, mpz_t q, int *fault_happened, const mpz_t u, const mpz_t N, const mpz_t R, const mpz_t b_n_plus_1, unsigned int n) {
 
     mpz_t u_high, q_hat, r1, r2, temp, N_mult, b_n_plus_2;
@@ -219,81 +115,130 @@ void barrett_reduction_REF(mpz_t r, const mpz_t u, const mpz_t N, const mpz_t R,
     mpz_clears(u_high, q_hat, r1, r2, temp, N_mult, NULL);
 }
 
-//
-// __uint128_t barrett_reduction_128_64plus1(__uint128_t x) {
-//     __uint128_t mu, q, r;
-//
-//     // Compute q = (x * mu) >> 128
-//     q = (x * mu) >> 128;
-//
-//     // Compute r = x - q * N
-//     r = x - (q * mod_64plus1);
-//
-//     // If r >= N, subtract N
-//     if (r >= mod_64plus1) {
-//         r -= mod_64plus1;
-//     }
-//     return r;
-// }
-//
-// uint64_t m = (1ULL << 64) - 1;
-//
-// // Barrett reduction for modulus 2^64 - 1
-// uint64_t barrett_reduction_128_64minus1(__uint128_t a) {
-//     // m = 2^64 - 1, so we need to reduce a modulo (2^64 - 1)
-//
-//     // Compute q = floor(a / 2^64)
-//     uint64_t q = (uint64_t)(a >> 64);
-//
-//     // Compute r = a - q * (2^64 - 1)
-//     uint64_t r = (uint64_t)(a & m) - q;
-//
-//     // If r >= m, subtract m to get the final result
-//     if (r >= m) {
-//         r -= m;
-//     }
-//
-//     return r;
-// }
-//
-//
-// // void barrett_reduction_64plus1(mpz_t N) {
-//
-//
-//     // mpz_t u_high, q_hat, r1, r2, temp, N_mult, b_n_plus_2;
-//     //
-//     // // Initialize temporary variables
-//     // mpz_inits(u_high, q_hat, r1, r2, temp, N_mult, b_n_plus_2, NULL);
-//     //
-//     // // Step 1: Compute q_hat = floor(floor(u / b^(n-1)) * R / b^(n+1))
-//     // mpz_tdiv_q_2exp(u_high, u, (n - 1) * WORD_SIZE); // u_high = u >> (n-1)*word_size
-//     // mpz_mul(q_hat, u_high, R);                       // q_hat = u_high * R
-//     // mpz_tdiv_q_2exp(q_hat, q_hat, (n + 1) * WORD_SIZE); // q_hat = q_hat >> (n+1)*word_size
-//     //
-//     // // Step 2: Compute r = u mod b^(n+1) - (q_hat * N) mod b^(n+1)
-//     // // Instead of using mpz_mod, use bitwise AND
-//     // mpz_sub_ui(b_n_plus_2, b_n_plus_1, 1); // b_n_plus_1 - 1
-//     //
-//     // // r1 = u & (b_n_plus_1 - 1) (equivalent to u % b^(n+1))
-//     // mpz_and(r1, u, b_n_plus_2);
-//     //
-//     // // r2 = (q_hat * N) & (b_n_plus_1 - 1) (equivalent to (q_hat * N) % b^(n+1))
-//     // mpz_mul_ui(N_mult, q_hat, mod_64plus1);  // N_mult = q_hat * N
-//     // mpz_and(r2, N_mult, b_n_plus_2);  // r2 = (q_hat * N) & (b_n_plus_1 - 1)
-//     //
-//     // // r = r1 - r2
-//     // mpz_sub(r, r1, r2);
-//     //
-//     // // Step 3: If r < 0, add b^(n+1)
-//     // if (mpz_sgn(r) < 0) {
-//     //     mpz_add(r, r, b_n_plus_2);
-//     // }
-//     //
-//     // // Step 4: While r >= N, subtract N
-//     // while (mpz_cmp_ui(r, mod_64plus1) >= 0) {
-//     //     mpz_sub_ui(r, r, mod_64plus1);
-//     // }
-//     //
-//     // mpz_clears(u_high, q_hat, r1, r2, temp, N_mult, NULL);
-// // }
-//
+
+
+void barret_multiplication_radix(mpz_t result, const mpz_t X, const mpz_t Y, const mpz_t M, unsigned long m, unsigned long alpha, unsigned long beta) {
+    mpz_t r, mu, T, q, temp;
+    mpz_inits(r, mu, T, q, temp, NULL);
+
+    // Step 1: Precompute r = 2^m and mu = floor(2^(N+alpha) / M)
+    mpz_ui_pow_ui(r, 2, m);
+    size_t N = mpz_sizeinbase(M, 2); // N = bit length of M
+    mpz_ui_pow_ui(temp, 2, N + alpha);
+    mpz_fdiv_q(mu, temp, M);
+
+    // Step 2: Initialize Z = 0
+    mpz_t Z;
+    mpz_init_set_ui(Z, 0);
+
+    // Decompose Y into nm words
+    size_t nm = (N + m - 1) / m; // ceiling(N / m)
+    mpz_t *Y_words = malloc(nm * sizeof(mpz_t));
+    for (size_t i = 0; i < nm; i++) {
+        mpz_init(Y_words[i]);
+        mpz_fdiv_r_2exp(Y_words[i], Y, m * (i + 1));
+        mpz_fdiv_q_2exp(Y_words[i], Y_words[i], m * i);
+    }
+
+    // Step 3: Main loop
+    for (ssize_t i = nm - 1; i >= 0; i--) {
+        mpz_mul(T, Z, r);          // T = Z(i+1) * r
+        mpz_addmul(T, X, Y_words[i]); // T += X * Y_i
+        mpz_mul(temp, T, mu);      // temp = T * mu
+        mpz_fdiv_q_2exp(q, temp, N + beta); // q = floor(temp / 2^(N+beta))
+        mpz_mul(temp, q, M);       // temp = q * M
+        mpz_sub(Z, T, temp);       // Z = T - temp
+    }
+
+    // Step 4: Final reduction
+    if (mpz_cmp(Z, M) >= 0) {
+        mpz_sub(Z, Z, M);
+    }
+
+    // Set result
+    mpz_set(result, Z);
+
+    // Cleanup
+    mpz_clears(r, mu, T, q, temp, Z, NULL);
+    for (size_t i = 0; i < nm; i++) {
+        mpz_clear(Y_words[i]);
+    }
+    free(Y_words);
+}
+
+
+
+void barret_multiplication(mpz_t result, mpz_t a, mpz_t b, mpz_t q, size_t k) {
+
+    // Initialize variables
+    mpz_t t1, t2, t3, t4, m, two_k;
+    mpz_inits(t1, t2, t3, t4, m, two_k, NULL);
+
+    // Compute k = ceil(log2(q))
+    // k = mpz_sizeinbase(q, 2);
+
+    // Compute m = floor(2^(2k) / q)
+    mpz_ui_pow_ui(two_k, 2, 2 * k); // two_k = 2^(2k)
+    mpz_fdiv_q(m, two_k, q);        // m = floor(2^(2k) / q)
+
+    // Compute t1 = a * b
+    mpz_mul(t1, a, b);
+
+    // Compute t2 = floor(t1 * m / 2^(2k))
+    mpz_mul(t2, t1, m);         // t2 = t1 * m
+    mpz_fdiv_q_2exp(t2, t2, 2 * k); // t2 = floor(t2 / 2^(2k))
+
+    // Compute t3 = t2 * q
+    mpz_mul(t3, t2, q);
+
+    // Compute t4 = t1 - t3
+    mpz_sub(t4, t1, t3);
+
+    // If t4 >= q, compute z = t4 - q
+    if (mpz_cmp(t4, q) >= 0) {
+        mpz_sub(result, t4, q);
+    } else {
+        mpz_set(result, t4);
+    }
+
+    // Clear variables
+    mpz_clears(t1, t2, t3, t4, m, two_k, NULL);
+}
+
+
+// Precompute mu = floor(2^k / m) for a given modulus m
+void compute_shoup_mu(mpz_t mu, const mpz_t m, unsigned int k) {
+    mpz_t base;
+    mpz_init(base);
+    mpz_ui_pow_ui(base, 2, k);  // base = 2^k
+    mpz_fdiv_q(mu, base, m);    // mu = floor(2^k / m)
+    mpz_clear(base);
+}
+
+// Shoup modular multiplication
+void shoup_multiply(mpz_t result, const mpz_t a, const mpz_t b, const mpz_t m, const mpz_t mu, unsigned int k) {
+    mpz_t r, q, temp;
+    mpz_inits(r, q, temp, NULL);
+
+    // Step 1: r = a * b
+    mpz_mul(r, a, b);
+
+    // Step 2: q = floor(r * mu / 2^k)
+    mpz_mul(temp, r, mu);        // temp = r * mu
+    mpz_tdiv_q_2exp(q, temp, k); // q = temp / 2^k (right shift by k bits)
+
+    // Step 3: result = r - q * m
+    mpz_mul(temp, q, m);         // temp = q * m
+    mpz_sub(result, r, temp);    // result = r - temp
+
+    // Step 4: Normalize result
+    if (mpz_cmp(result, m) >= 0) {
+        mpz_sub(result, result, m); // result -= m if result >= m
+    }
+    if (mpz_sgn(result) < 0) {
+        mpz_add(result, result, m); // result += m if result < 0
+    }
+
+    mpz_clears(r, q, temp, NULL);
+}
+

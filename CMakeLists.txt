@@ -13,7 +13,8 @@ add_executable(main_our
     main_our.c
         src/barret.c
         src/barret.h
-        src/size.h)
+        src/size.h
+        )
 
 add_executable(main_ref
         main_ref.c

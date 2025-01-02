@@ -9,8 +9,17 @@ link_libraries(papi gmp)
 
 add_compile_options(-w -O3)
 
+add_executable(barretM_ref
+        main_barret_mult.c
+        src/barret.c
+        src/barret.h
+        src/size.h
+)
+
+
+
 add_executable(main_our
-    main_our.c
+    main_barret_reduction.c
         src/barret.c
         src/barret.h
         src/size.h

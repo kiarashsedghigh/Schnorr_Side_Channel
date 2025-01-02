@@ -8,7 +8,7 @@
 
 int main() {
     mpz_t N, u, R, b_n_minus_1, b_n_plus_1, r_correct, q_correct, r_barrett, q_barrett;
-    unsigned int n, counter_result = 0, iteration = 10000;
+    unsigned int n, counter_result = 0, iteration = 1000000;
     int sum_N_1, sum_N_2, sum_N_3, sum_q_1, sum_q_2, sum_q_3, sum_u_1, sum_u_2, sum_u_3, sum_r_1, sum_r_2, sum_r_3;
     int Zero_1, Zero_2, Zero_3;
     int counter1 = 0, counter2 = 0, counter3 = 0, counter_loop = 0, counter_combined = 0;
@@ -58,46 +58,32 @@ int main() {
         mpz_urandomb(u, state, SIZE_U);
 
 
+        // Precompute R, b^(n-1), b^(n+1)
+        // Calculate length_N and n
+
 
 /**************************************************************************************************************************/
         // Start the event set
-        if (PAPI_start(EventSet) != PAPI_OK) {
-            fprintf(stderr, "Error starting PAPI\n");
-            exit(1);
-        }
 
-        // Calculate length_N and n
+
         unsigned int length_N = mpz_sizeinbase(N, 2); // Number of bits in N
         n = (length_N + WORD_SIZE - 1) / WORD_SIZE;
-
-        // Precompute R, b^(n-1), b^(n+1)
         mpz_ui_pow_ui(b_n_minus_1, 2, (n - 1) * WORD_SIZE);
         mpz_ui_pow_ui(b_n_plus_1, 2, (n + 1) * WORD_SIZE);
         mpz_ui_pow_ui(R, 2, 2 * n * WORD_SIZE);
         mpz_fdiv_q(R, R, N); // R = floor(b^(2n) / N)
 
-        // Perform Barrett reduction
+        if (PAPI_start(EventSet) != PAPI_OK) {
+            fprintf(stderr, "Error starting PAPI\n");
+            exit(1);
+        }
+
+
+
+
 
         // barrett_reduction_OURS(r_barrett, q_barrett, &fault_happened_loop, u, N, R, b_n_minus_1, b_n_plus_1, n);
-        barrett_reduction_REF(r_barrett, u, N, R, b_n_minus_1, b_n_plus_1, n);
-
-        // Adding is done in the function
-        counter_loop = counter_loop + fault_happened_loop;
-
-        //
-        // compute_sums(N, &sum_N_1, &sum_N_2, &sum_N_3);
-        // compute_sums(u, &sum_u_1, &sum_u_2, &sum_u_3);
-        // compute_sums(r_barrett, &sum_r_1, &sum_r_2, &sum_r_3);
-        // compute_sums(q_barrett, &sum_q_1, &sum_q_2, &sum_q_3);
-
-        Zero_1 = (sum_u_1) - (sum_N_1 * sum_q_1) - sum_r_1;
-        Zero_2 = (sum_u_2) - (sum_N_2 * sum_q_2) - sum_r_2;
-        Zero_3 = (sum_u_3) - (sum_N_3 * sum_q_3) - sum_r_3;
-
-
-        if (Zero_1 % 9 == 0 && Zero_2 % 11 == 0 && Zero_3 % 101 == 0 && fault_happened_loop == 0) {
-            counter_combined++;
-        }
+        barrett_reduction_REF(r_barrett, u, N, R, b_n_plus_1, n);
 
 
         if (PAPI_stop(EventSet, benchmark_results_single_iteration) != PAPI_OK) {

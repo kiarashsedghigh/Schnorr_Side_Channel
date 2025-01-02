@@ -33,6 +33,11 @@ int main() {
         return -1;
     }
 
+    if (PAPI_add_event(EventSet, PAPI_TOT_INS) != PAPI_OK) {
+        fprintf(stderr, "Error adding PAPI_TOT_INS\n");
+        exit(1);
+    }
+
     /* Variables holding the cycle/instruction counts for single/total interation(s) */
     long long benchmark_results_single_iteration[2] = {0,0};
     long long benchmark_results_total_iterations[2] = {0,0};
@@ -83,7 +88,7 @@ int main() {
 
         /* Precompute barret ..... for already known and fixed N */
         uint64_t sum1_N, sum2_N;
-        sum_eff_mod64twomodes(N, &sum1_N, &sum2_N);
+        limb_sum_mod64p1_64m1(N, &sum1_N, &sum2_N);
 
         if (PAPI_start(EventSet) != PAPI_OK) {
             fprintf(stderr, "Error starting PAPI\n");
@@ -99,8 +104,8 @@ int main() {
         uint64_t sum1_ur, sum2_ur;
         uint64_t sum1_qbarret, sum2_qbarret;
 
-        sum_eff_mod64twomodes(ur_diff, &sum1_ur, &sum2_ur);
-        sum_eff_mod64twomodes(q_barrett, &sum1_qbarret, &sum2_qbarret);
+        limb_sum_mod64p1_64m1(ur_diff, &sum1_ur, &sum2_ur);
+        limb_sum_mod64p1_64m1(q_barrett, &sum1_qbarret, &sum2_qbarret);
 
         __uint128_t mul1_sqsn = (__uint128_t)sum1_qbarret * (__uint128_t)sum1_N;
         __uint128_t zero1 = ( (mul1_sqsn) - (__uint128_t)sum1_ur) % mod_64minus1;
@@ -120,6 +125,7 @@ int main() {
 
         benchmark_results_total_iterations[0] += benchmark_results_single_iteration[0];
         benchmark_results_total_iterations[1] += benchmark_results_single_iteration[1];
+
     }
 
     // Clean up
@@ -137,7 +143,7 @@ int main() {
     /**************************************************************************************************************************/
     printf("Total cycles: %lld\n", benchmark_results_total_iterations[0] / ITERATIONS);
     printf("Total instructions: %lld\n", benchmark_results_total_iterations[1] / ITERATIONS);
-    printf("No fault happened is %u.\n", counter_result); // only for checking it works- must delete for overhead
+    printf("No fault happened is %u.\n", counter_result);
     printf("fault happened but not detected from combined is %u.\n", counter_combined);
 
     mpz_clears(N, u, R, b_n_minus_1, b_n_plus_1, r_correct, q_correct, r_barrett, q_barrett, NULL);

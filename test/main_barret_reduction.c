@@ -1,18 +1,13 @@
-#include <stdio.h>
-#include <gmp.h>
-#include <time.h>
-#include <stdlib.h>
-#include <papi.h>
-#include "src/barret.h"
-#include "src/size.h"
+#include "barret_lib.h"
 
-#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
 
 #define ITERATIONS 100000
 
 
 int main() {
-
     int EventSet = PAPI_NULL;
 
     // Initialize the PAPI library
@@ -39,9 +34,8 @@ int main() {
     }
 
     /* Variables holding the cycle/instruction counts for single/total interation(s) */
-    long long benchmark_results_single_iteration[2] = {0,0};
-    long long benchmark_results_total_iterations[2] = {0,0};
-
+    long long benchmark_results_single_iteration[2] = {0, 0};
+    long long benchmark_results_total_iterations[2] = {0, 0};
 
 
     // Initialize GMP integers
@@ -53,19 +47,12 @@ int main() {
     gmp_randinit_mt(state); // Mersenne Twister random generator
     gmp_randseed_ui(state, time(NULL)); // Seed with current time
 
-
     unsigned int counter_result = 0;
-
-
     int counter_combined = 0;
     int fault_happened_loop = 0;
 
 
     for (unsigned int i = 0; i < ITERATIONS; i++) {
-
-        const __uint128_t mod_64minus2 = 18446744073709551614;
-        const __uint128_t mod_64minus1 = 18446744073709551615;
-
         /* Generate random N and u and compute q,r as N = u.q + r */
         // Generate a random N
         mpz_urandomb(N, state, SIZE_N);
@@ -76,46 +63,48 @@ int main() {
         // Generate a random u
         mpz_urandomb(u, state, SIZE_U);
 
+        // Compute the real/correct value of q and r
+        mpz_mod(r_correct, u, N);
+        mpz_fdiv_q(q_correct, u, N);
 
         if (PAPI_start(EventSet) != PAPI_OK) {
             fprintf(stderr, "Error starting PAPI\n");
             exit(1);
         }
 
-        mpz_t X, Y, M, result;
-        mpz_inits(X, Y, M, result, NULL);
+        // Precompute R, b^(n-1), b^(n+1)
+        mpz_ui_pow_ui(b_n_plus_1, 2, (number_word_count + 1) * WORD_SIZE);
+        mpz_ui_pow_ui(R, 2, 2 * number_word_count * WORD_SIZE);
+        mpz_fdiv_q(R, R, N);
 
-        // Initialize values for X, Y, M
-        mpz_set_str(X, "20214201316202783299242554811138106343922050269439575514811953896596770920561145830633211474257353477419096402680177431711860578647926876212828203432964325144562947296861436637069154268326440130616295489416570794279766291397798123520937149287459130764295397249712099718426268653072941374565881877599757060485180302111477255959027025317470927602078073284308908529611367116151135474314589582021784465957342854085667419164935035077096607128269228716598056975187794345076923710655402498715478026344484845498671904503044434165072041795123288486395840986646767256168515806172446481341106247703034104109062349182746850571900", 10);
-        mpz_set_str(Y, "16832320556202393978997812802647765108318837276732427572851460854482540460463531843906520611803832294408098040718124280854840056228220581493908818324241124188155145958367050420768910508436935872893861725146421501055408547373761685242498971431237054627158088945749870468726167188286543345911924152914141659317586936725441711836455784582934591821100342178381596214498268839737163666111726461227024540370351399002476556840267673870968380701370011161193466493138715720715562410586014527627171277676285268375632564131544090851431264976552774929982791110994661428824452409378975591449782014864471863746609062880608030030940", 10);
-        mpz_set_str(M, "86832320556202393978997812802647765108318837276732427572851460854482540460463531843906520611803832294408098040718124280854840056228220581493908818324241124188155145958367050420768910508436935872893861725146421501055408547373761685242498971431237054627158088945749870468726167188286543345911924152914141659317586936725441711836455784582934591821100342178381596214498268839737163666111726461227024540370351399002476556840267673870968380701370011161193466493138715720715562410586014527627171277676285268375632564131544090851431264976552774929982791110994661428824452409378975591449782014864471863746609062880608030030940", 10);
-
-
-
-        // Perform Barrett Modular Multiplication
-        unsigned long m = 32; // word size
-        long alpha = m+3, beta = -2; // parameters
-        barret_multiplication_radix(result, X, Y, M, m, alpha, beta);
-
-        // Print result
-        gmp_printf("Result_our: %Zd\n", result);
-
-        mpz_mul(X,X,Y);
-        mpz_mod(X,X,M);
+        /* Precompute barret ..... for already known and fixed N */
+        uint64_t sum1_N, sum2_N;
+        limb_sum_mod64m1_64m2(N, &sum1_N, &sum2_N);
 
 
-        gmp_printf("Result GMP: %Zd\n", X);
+        /* Calling Original Barret Reduction */
+        // BR_Origin(r_barrett, u, N, R, b_n_plus_1, number_word_count);
 
-        mpz_sub(X,X,result);
-        gmp_printf("Result EQ: %Zd\n", X);
-
-
-
-        exit(0);
-        // Cleanup
-        mpz_clears(X, Y, M, result, NULL);
-
-
+        // /* Call our barret reduction implementation */
+        // BR_Robust(r_barrett, q_barrett, &fault_happened_loop, u, N, R, b_n_plus_1, number_word_count);
+        //
+        // mpz_sub(ur_diff, u, r_barrett);
+        //
+        // uint64_t sum1_ur, sum2_ur;
+        // uint64_t sum1_qbarret, sum2_qbarret;
+        //
+        //
+        // limb_sum_mod64m1_64m2(ur_diff, &sum1_ur, &sum2_ur);
+        // limb_sum_mod64m1_64m2(q_barrett, &sum1_qbarret, &sum2_qbarret);
+        //
+        // const __uint128_t mul1_sqsn = (__uint128_t) sum1_qbarret * (__uint128_t) sum1_N;
+        // const __uint128_t zero1 = ((mul1_sqsn) - (__uint128_t) sum1_ur) % mod_64minus1;
+        //
+        // const __uint128_t mul2_sqsn = (__uint128_t) sum2_qbarret * (__uint128_t) sum2_N;
+        // const __uint128_t zero2 = ((mul2_sqsn) - (__uint128_t) sum2_ur) % mod_64minus2;
+        //
+        // if (zero1 == 0 && zero2 == 0 && fault_happened_loop == 0)
+        //     counter_combined++;
 
         if (PAPI_stop(EventSet, benchmark_results_single_iteration) != PAPI_OK) {
             fprintf(stderr, "Error stopping PAPI\n");
@@ -124,7 +113,6 @@ int main() {
 
         benchmark_results_total_iterations[0] += benchmark_results_single_iteration[0];
         benchmark_results_total_iterations[1] += benchmark_results_single_iteration[1];
-
     }
 
     // Clean up
